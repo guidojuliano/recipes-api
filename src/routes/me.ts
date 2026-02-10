@@ -28,7 +28,7 @@ const me: FastifyPluginAsync = async (fastify): Promise<void> => {
 
     const { data: favorites, error: favoritesError } = await supabase
       .from(FAVORITES_TABLE)
-      .select('recipe:recipe_id(*, owner:profiles!recipes_owner_id_fkey(id,display_name,avatar_url), recipe_categories(category:categories(id,slug,name,sort_order)))')
+      .select('recipe:recipe_id(*, recipe_categories(category:categories(id,slug,name,sort_order)))')
       .eq('user_id', user.id)
 
     if (favoritesError) {
@@ -42,7 +42,34 @@ const me: FastifyPluginAsync = async (fastify): Promise<void> => {
     if (!recipes || recipes.length === 0) {
       return []
     }
-    return recipes
+
+    const ownerIds = Array.from(
+      new Set(
+        recipes
+          .map((recipe) => (recipe.owner_id ? recipe.owner_id : null))
+          .filter((ownerId): ownerId is string => Boolean(ownerId)),
+      ),
+    )
+
+    if (ownerIds.length === 0) {
+      return recipes
+    }
+
+    const { data: owners, error: ownersError } = await supabase
+      .from('profiles')
+      .select('id,display_name,avatar_url')
+      .in('id', ownerIds)
+
+    if (ownersError) {
+      throw request.server.httpErrors.internalServerError(ownersError.message)
+    }
+
+    const ownersById = new Map((owners ?? []).map((owner) => [owner.id, owner]))
+
+    return recipes.map((recipe) => ({
+      ...recipe,
+      owner: ownersById.get(recipe.owner_id) ?? null,
+    }))
   },
   )
 }

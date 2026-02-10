@@ -50,7 +50,7 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
     const categoryTrimmed = category?.trim()
 
     const selectWithCategories =
-      '*, owner:profiles!recipes_owner_id_fkey(id,display_name,avatar_url), recipe_categories(category:categories(id,slug,name,sort_order))'
+      '*, recipe_categories(category:categories(id,slug,name,sort_order))'
 
     if (categoryTrimmed) {
       const { data: categoryRow, error: categoryError } = await supabase
@@ -94,7 +94,32 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
         throw request.server.httpErrors.internalServerError(error.message)
       }
 
-      return data ?? []
+      const recipes = data ?? []
+      if (recipes.length === 0) return []
+
+      const ownerIds = Array.from(
+        new Set(recipes.map((recipe) => recipe.owner_id).filter(Boolean)),
+      )
+
+      if (ownerIds.length === 0) return recipes
+
+      const { data: owners, error: ownersError } = await supabase
+        .from('profiles')
+        .select('id,display_name,avatar_url')
+        .in('id', ownerIds)
+
+      if (ownersError) {
+        throw request.server.httpErrors.internalServerError(ownersError.message)
+      }
+
+      const ownersById = new Map(
+        (owners ?? []).map((owner) => [owner.id, owner]),
+      )
+
+      return recipes.map((recipe) => ({
+        ...recipe,
+        owner: ownersById.get(recipe.owner_id) ?? null,
+      }))
     }
 
     let query = supabase.from(RECIPES_TABLE).select(selectWithCategories)
@@ -108,7 +133,30 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
       throw request.server.httpErrors.internalServerError(error.message)
     }
 
-    return data ?? []
+    const recipes = data ?? []
+    if (recipes.length === 0) return []
+
+    const ownerIds = Array.from(
+      new Set(recipes.map((recipe) => recipe.owner_id).filter(Boolean)),
+    )
+
+    if (ownerIds.length === 0) return recipes
+
+    const { data: owners, error: ownersError } = await supabase
+      .from('profiles')
+      .select('id,display_name,avatar_url')
+      .in('id', ownerIds)
+
+    if (ownersError) {
+      throw request.server.httpErrors.internalServerError(ownersError.message)
+    }
+
+    const ownersById = new Map((owners ?? []).map((owner) => [owner.id, owner]))
+
+    return recipes.map((recipe) => ({
+      ...recipe,
+      owner: ownersById.get(recipe.owner_id) ?? null,
+    }))
   },
   )
 
@@ -214,7 +262,7 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
 
       const { data: recipeWithCategories, error: recipeError } = await supabase
         .from(RECIPES_TABLE)
-        .select('*, owner:profiles!recipes_owner_id_fkey(id,display_name,avatar_url), recipe_categories(category:categories(id,slug,name,sort_order))')
+        .select('*, recipe_categories(category:categories(id,slug,name,sort_order))')
         .eq('id', data.id)
         .single()
 
@@ -222,12 +270,38 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
         throw request.server.httpErrors.internalServerError(recipeError.message)
       }
 
+      const { data: owner, error: ownerError } = await supabase
+        .from('profiles')
+        .select('id,display_name,avatar_url')
+        .eq('id', data.owner_id)
+        .maybeSingle()
+
+      if (ownerError) {
+        throw request.server.httpErrors.internalServerError(ownerError.message)
+      }
+
       reply.code(201)
-      return recipeWithCategories
+      return {
+        ...recipeWithCategories,
+        owner: owner ?? null,
+      }
     }
 
     reply.code(201)
-    return data
+    const { data: owner, error: ownerError } = await supabase
+      .from('profiles')
+      .select('id,display_name,avatar_url')
+      .eq('id', data.owner_id)
+      .maybeSingle()
+
+    if (ownerError) {
+      throw request.server.httpErrors.internalServerError(ownerError.message)
+    }
+
+    return {
+      ...data,
+      owner: owner ?? null,
+    }
   },
   )
 
