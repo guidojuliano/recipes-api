@@ -50,7 +50,7 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
     const categoryTrimmed = category?.trim()
 
     const selectWithCategories =
-      '*, owner:profiles(id,display_name,avatar_url), recipe_categories(category:categories(id,slug,name,sort_order))'
+      '*, owner:profiles!recipes_owner_id_fkey(id,display_name,avatar_url), recipe_categories(category:categories(id,slug,name,sort_order))'
 
     if (categoryTrimmed) {
       const { data: categoryRow, error: categoryError } = await supabase
@@ -214,7 +214,7 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
 
       const { data: recipeWithCategories, error: recipeError } = await supabase
         .from(RECIPES_TABLE)
-        .select('*, owner:profiles(id,display_name,avatar_url), recipe_categories(category:categories(id,slug,name,sort_order))')
+        .select('*, owner:profiles!recipes_owner_id_fkey(id,display_name,avatar_url), recipe_categories(category:categories(id,slug,name,sort_order))')
         .eq('id', data.id)
         .single()
 
