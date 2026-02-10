@@ -23,7 +23,28 @@ interface RecipeCategoryLink {
 }
 
 const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
-  fastify.get('/recipes', async (request) => {
+  fastify.get(
+    '/recipes',
+    {
+      schema: {
+        tags: ['recipes'],
+        querystring: {
+          type: 'object',
+          properties: {
+            q: { type: 'string' },
+            category: { type: 'string' },
+          },
+          additionalProperties: false,
+        },
+        response: {
+          200: {
+            type: 'array',
+            items: { type: 'object', additionalProperties: true },
+          },
+        },
+      },
+    },
+    async (request) => {
     const { q, category } = request.query as RecipesQuerystring
     const qTrimmed = q?.trim()
     const categoryTrimmed = category?.trim()
@@ -88,9 +109,33 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
     }
 
     return data ?? []
-  })
+  },
+  )
 
-  fastify.post('/recipes', async (request, reply) => {
+  fastify.post(
+    '/recipes',
+    {
+      schema: {
+        tags: ['recipes'],
+        security: [{ bearerAuth: [] }],
+        body: {
+          type: 'object',
+          required: ['title', 'ingredients', 'instructions'],
+          properties: {
+            title: { type: 'string' },
+            ingredients: { type: 'array', items: { type: 'string' } },
+            instructions: { type: 'string' },
+            image_url: { type: ['string', 'null'] },
+            category_ids: { type: 'array', items: { type: ['integer', 'string'] } },
+          },
+          additionalProperties: true,
+        },
+        response: {
+          201: { type: 'object', additionalProperties: true },
+        },
+      },
+    },
+    async (request, reply) => {
     const user = await requireUser(request)
 
     if (!request.body || typeof request.body !== 'object' || Array.isArray(request.body)) {
@@ -183,9 +228,29 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
 
     reply.code(201)
     return data
-  })
+  },
+  )
 
-  fastify.post('/recipes/:id/favorite', async (request) => {
+  fastify.post(
+    '/recipes/:id/favorite',
+    {
+      schema: {
+        tags: ['favorites'],
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+          },
+          required: ['id'],
+          additionalProperties: false,
+        },
+        response: {
+          200: { type: 'object', additionalProperties: true },
+        },
+      },
+    },
+    async (request) => {
     const user = await requireUser(request)
     const { id } = request.params as FavoriteParams
 
@@ -210,9 +275,29 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
     }
 
     return data
-  })
+  },
+  )
 
-  fastify.delete('/recipes/:id/favorite', async (request, reply) => {
+  fastify.delete(
+    '/recipes/:id/favorite',
+    {
+      schema: {
+        tags: ['favorites'],
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+          },
+          required: ['id'],
+          additionalProperties: false,
+        },
+        response: {
+          204: { type: 'null' },
+        },
+      },
+    },
+    async (request, reply) => {
     const user = await requireUser(request)
     const { id } = request.params as FavoriteParams
 
@@ -232,7 +317,8 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
 
     reply.code(204)
     return null
-  })
+  },
+  )
 }
 
 export default recipes

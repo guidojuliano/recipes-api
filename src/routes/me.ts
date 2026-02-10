@@ -9,7 +9,21 @@ interface FavoriteRow {
 }
 
 const me: FastifyPluginAsync = async (fastify): Promise<void> => {
-  fastify.get('/me/favorites', async (request) => {
+  fastify.get(
+    '/me/favorites',
+    {
+      schema: {
+        tags: ['favorites'],
+        security: [{ bearerAuth: [] }],
+        response: {
+          200: {
+            type: 'array',
+            items: { type: 'object', additionalProperties: true },
+          },
+        },
+      },
+    },
+    async (request) => {
     const user = await requireUser(request)
 
     const { data: favorites, error: favoritesError } = await supabase
@@ -29,7 +43,8 @@ const me: FastifyPluginAsync = async (fastify): Promise<void> => {
       return []
     }
     return recipes
-  })
+  },
+  )
 }
 
 export default me

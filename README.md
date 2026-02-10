@@ -1,23 +1,79 @@
-# Getting Started with [Fastify-CLI](https://www.npmjs.com/package/fastify-cli)
-This project was bootstrapped with Fastify-CLI.
+# Cookly Recipes API
 
-## Available Scripts
+API de recetas con Fastify y Supabase.
 
-In the project directory, you can run:
+## Requisitos
 
-### `npm run dev`
+- Node.js 18+
+- Cuenta de Supabase
 
-To start the app in dev mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+## Variables de entorno
 
-### `npm start`
+Crea un `.env` en la raíz con:
 
-For production mode
+```
+SUPABASE_URL=...
+SUPABASE_ANON_KEY=...
+```
 
-### `npm run test`
+## Scripts
 
-Run the test cases.
+- `npm run dev` inicia en modo desarrollo
+- `npm start` producción
+- `npm run test` tests
 
-## Learn More
+Servidor por defecto: `http://localhost:3000`
 
-To learn Fastify, check out the [Fastify documentation](https://fastify.dev/docs/latest/).
+## Endpoints
+
+Públicos:
+
+- `GET /` lista endpoints y estado
+- `GET /recipes?q=&category=` lista recetas (filtros opcionales)
+
+Protegidos (Bearer Token):
+
+- `POST /recipes` crea receta
+- `POST /recipes/:id/favorite` agrega a favoritos
+- `DELETE /recipes/:id/favorite` elimina de favoritos
+- `GET /me/favorites` lista favoritos del usuario
+
+### Body esperado en `POST /recipes`
+
+```
+{
+  "title": "Pasta",
+  "ingredients": ["tomate", "ajo"],
+  "instructions": "Hervir...",
+  "image_url": "https://...",
+  "category_ids": [1, 3]
+}
+```
+
+Reglas de validación:
+
+- `title`, `ingredients`, `instructions` son obligatorios
+- Si `image_url` es `null` o vacío, se usa un placeholder
+- `category_ids` es opcional (usa IDs de la tabla `categories`)
+
+## Categorías
+
+La relación es many‑to‑many:
+
+- `recipes`
+- `categories`
+- `recipe_categories` (tabla puente)
+
+El filtro `category` en `GET /recipes` usa el `slug` de `categories`.
+
+## Autenticación
+
+Usa `Authorization: Bearer <token>` con tokens de Supabase.
+
+## Swagger
+
+Documentación disponible en:
+
+- `http://localhost:3000/docs`
+
+El OpenAPI se genera automáticamente desde los schemas de las rutas.
