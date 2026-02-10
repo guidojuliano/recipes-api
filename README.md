@@ -77,3 +77,17 @@ Documentación disponible en:
 - `http://localhost:3000/docs`
 
 El OpenAPI se genera automáticamente desde los schemas de las rutas.
+
+## Deploy en Vercel
+
+Este proyecto incluye configuración serverless para Vercel.
+
+Pasos:
+
+1. Importa el repo en Vercel.
+2. Configura variables de entorno:
+   - `SUPABASE_URL`
+   - `SUPABASE_ANON_KEY`
+3. Deploy.
+
+La API queda expuesta en la URL del proyecto.
