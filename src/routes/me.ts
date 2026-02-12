@@ -1,6 +1,6 @@
 import { FastifyPluginAsync } from 'fastify'
-import { supabase } from '../config/supabase'
-import { requireUser } from '../utils/auth'
+import { createSupabaseClient } from '../config/supabase'
+import { getBearerToken, requireUser } from '../utils/auth'
 
 const FAVORITES_TABLE = 'favorites'
 
@@ -25,8 +25,10 @@ const me: FastifyPluginAsync = async (fastify): Promise<void> => {
     },
     async (request) => {
     const user = await requireUser(request)
+    const token = getBearerToken(request.headers.authorization)
+    const authedSupabase = createSupabaseClient(token ?? undefined)
 
-    const { data: favorites, error: favoritesError } = await supabase
+    const { data: favorites, error: favoritesError } = await authedSupabase
       .from(FAVORITES_TABLE)
       .select('recipe:recipe_id(*, recipe_categories(category:categories(id,slug,name,sort_order)))')
       .eq('user_id', user.id)
@@ -55,7 +57,7 @@ const me: FastifyPluginAsync = async (fastify): Promise<void> => {
       return recipes
     }
 
-    const { data: owners, error: ownersError } = await supabase
+    const { data: owners, error: ownersError } = await authedSupabase
       .from('profiles')
       .select('id,display_name,avatar_url')
       .in('id', ownerIds)

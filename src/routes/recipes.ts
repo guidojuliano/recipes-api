@@ -1,6 +1,6 @@
 import { FastifyPluginAsync } from 'fastify'
-import { supabase } from '../config/supabase'
-import { requireUser } from '../utils/auth'
+import { createSupabaseClient, supabase } from '../config/supabase'
+import { getBearerToken, requireUser } from '../utils/auth'
 
 const RECIPES_TABLE = 'recipes'
 const FAVORITES_TABLE = 'favorites'
@@ -212,6 +212,8 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
     },
     async (request, reply) => {
     const user = await requireUser(request)
+    const token = getBearerToken(request.headers.authorization)
+    const authedSupabase = createSupabaseClient(token ?? undefined)
 
     if (!request.body || typeof request.body !== 'object' || Array.isArray(request.body)) {
       throw request.server.httpErrors.badRequest('Invalid body')
@@ -252,7 +254,7 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
       owner_id: user.id,
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await authedSupabase
       .from(RECIPES_TABLE)
       .insert(payload)
       .select('*')
@@ -273,7 +275,7 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
       .filter((value): value is number | string => value !== null)
 
     if (normalizedCategoryIds.length > 0) {
-      const { error: linkError } = await supabase
+      const { error: linkError } = await authedSupabase
         .from(RECIPE_CATEGORIES_TABLE)
         .upsert(
           normalizedCategoryIds.map((categoryId) => ({
@@ -287,7 +289,7 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
         throw request.server.httpErrors.internalServerError(linkError.message)
       }
 
-      const { data: recipeWithCategories, error: recipeError } = await supabase
+      const { data: recipeWithCategories, error: recipeError } = await authedSupabase
         .from(RECIPES_TABLE)
         .select('*, recipe_categories(category:categories(id,slug,name,sort_order))')
         .eq('id', data.id)
@@ -297,7 +299,7 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
         throw request.server.httpErrors.internalServerError(recipeError.message)
       }
 
-      const { data: owner, error: ownerError } = await supabase
+      const { data: owner, error: ownerError } = await authedSupabase
         .from('profiles')
         .select('id,display_name,avatar_url')
         .eq('id', data.owner_id)
@@ -315,7 +317,7 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
     }
 
     reply.code(201)
-    const { data: owner, error: ownerError } = await supabase
+    const { data: owner, error: ownerError } = await authedSupabase
       .from('profiles')
       .select('id,display_name,avatar_url')
       .eq('id', data.owner_id)
@@ -353,13 +355,15 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
     },
     async (request) => {
     const user = await requireUser(request)
+    const token = getBearerToken(request.headers.authorization)
+    const authedSupabase = createSupabaseClient(token ?? undefined)
     const { id } = request.params as FavoriteParams
 
     if (!id) {
       throw request.server.httpErrors.badRequest('Missing recipe id')
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await authedSupabase
       .from(FAVORITES_TABLE)
       .upsert(
         {
@@ -400,13 +404,15 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
     },
     async (request, reply) => {
     const user = await requireUser(request)
+    const token = getBearerToken(request.headers.authorization)
+    const authedSupabase = createSupabaseClient(token ?? undefined)
     const { id } = request.params as FavoriteParams
 
     if (!id) {
       throw request.server.httpErrors.badRequest('Missing recipe id')
     }
 
-    const { error } = await supabase
+    const { error } = await authedSupabase
       .from(FAVORITES_TABLE)
       .delete()
       .eq('user_id', user.id)
