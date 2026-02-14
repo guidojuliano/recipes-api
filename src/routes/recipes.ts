@@ -12,6 +12,7 @@ const DEFAULT_RECIPE_IMAGE_URL =
 interface RecipesQuerystring {
   q?: string
   category?: string
+  owner_id?: string
 }
 
 interface FavoriteParams {
@@ -69,6 +70,7 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
           properties: {
             q: { type: 'string' },
             category: { type: 'string' },
+            owner_id: { type: 'string' },
           },
           additionalProperties: false,
         },
@@ -81,9 +83,10 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
       },
     },
     async (request) => {
-    const { q, category } = request.query as RecipesQuerystring
+    const { q, category, owner_id } = request.query as RecipesQuerystring
     const qTrimmed = q?.trim()
     const categoryTrimmed = category?.trim()
+    const ownerIdTrimmed = owner_id?.trim()
 
     const selectWithCategories =
       '*, recipe_categories(category:categories(id,slug,name,sort_order))'
@@ -124,6 +127,9 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
       if (qTrimmed) {
         query = query.ilike('title', `%${qTrimmed}%`)
       }
+      if (ownerIdTrimmed) {
+        query = query.eq('owner_id', ownerIdTrimmed)
+      }
 
       const { data, error } = await query
       if (error) {
@@ -162,6 +168,9 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
 
     if (qTrimmed) {
       query = query.ilike('title', `%${qTrimmed}%`)
+    }
+    if (ownerIdTrimmed) {
+      query = query.eq('owner_id', ownerIdTrimmed)
     }
 
     const { data, error } = await query
