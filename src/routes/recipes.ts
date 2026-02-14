@@ -22,6 +22,15 @@ interface RecipeCategoryLink {
   recipe_id: string
 }
 
+interface RecipeUpdateBody {
+  title?: unknown
+  ingredients?: unknown
+  instructions?: unknown
+  image_url?: unknown
+  category_ids?: unknown
+  categories?: unknown
+}
+
 const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
   fastify.get(
     '/categories',
@@ -332,6 +341,238 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
       owner: owner ?? null,
     }
   },
+  )
+
+  fastify.patch(
+    '/recipes/:id',
+    {
+      schema: {
+        tags: ['recipes'],
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+          },
+          required: ['id'],
+          additionalProperties: false,
+        },
+        body: {
+          type: 'object',
+          properties: {
+            title: { type: 'string' },
+            ingredients: { type: 'array', items: { type: 'string' } },
+            instructions: { type: 'string' },
+            image_url: { type: ['string', 'null'] },
+            category_ids: { type: 'array', items: { type: ['integer', 'string'] } },
+          },
+          additionalProperties: true,
+        },
+        response: {
+          200: { type: 'object', additionalProperties: true },
+        },
+      },
+    },
+    async (request) => {
+      const user = await requireUser(request)
+      const token = getBearerToken(request.headers.authorization)
+      const authedSupabase = createSupabaseClient(token ?? undefined)
+      const { id } = request.params as FavoriteParams
+
+      const { data: existingRecipe, error: existingRecipeError } = await authedSupabase
+        .from(RECIPES_TABLE)
+        .select('id,owner_id')
+        .eq('id', id)
+        .maybeSingle()
+
+      if (existingRecipeError) {
+        throw request.server.httpErrors.internalServerError(existingRecipeError.message)
+      }
+
+      if (!existingRecipe) {
+        throw request.server.httpErrors.notFound('Recipe not found')
+      }
+
+      if (existingRecipe.owner_id !== user.id) {
+        throw request.server.httpErrors.forbidden('You can only edit your own recipes')
+      }
+
+      if (!request.body || typeof request.body !== 'object' || Array.isArray(request.body)) {
+        throw request.server.httpErrors.badRequest('Invalid body')
+      }
+
+      const { category_ids, categories, ...rest } = request.body as RecipeUpdateBody
+      const payload: Record<string, unknown> = {}
+
+      if (rest.title !== undefined) {
+        if (typeof rest.title !== 'string' || rest.title.trim().length === 0) {
+          throw request.server.httpErrors.badRequest('Invalid title')
+        }
+        payload.title = rest.title.trim()
+      }
+
+      if (rest.instructions !== undefined) {
+        if (typeof rest.instructions !== 'string' || rest.instructions.trim().length === 0) {
+          throw request.server.httpErrors.badRequest('Invalid instructions')
+        }
+        payload.instructions = rest.instructions.trim()
+      }
+
+      if (rest.ingredients !== undefined) {
+        if (!Array.isArray(rest.ingredients)) {
+          throw request.server.httpErrors.badRequest('Invalid ingredients')
+        }
+        const normalizedIngredients = rest.ingredients
+          .filter((item) => typeof item === 'string')
+          .map((item) => item.trim())
+          .filter((item) => item.length > 0)
+        if (normalizedIngredients.length === 0) {
+          throw request.server.httpErrors.badRequest('Invalid ingredients')
+        }
+        payload.ingredients = normalizedIngredients
+      }
+
+      if (rest.image_url !== undefined) {
+        payload.image_url =
+          typeof rest.image_url === 'string' && rest.image_url.trim().length > 0
+            ? rest.image_url.trim()
+            : DEFAULT_RECIPE_IMAGE_URL
+      }
+
+      const rawCategoryIds = Array.isArray(category_ids)
+        ? category_ids
+        : Array.isArray(categories)
+          ? categories
+          : null
+
+      const shouldUpdateCategories = rawCategoryIds !== null
+      const normalizedCategoryIds = (rawCategoryIds ?? [])
+        .map((value) => (typeof value === 'number' || typeof value === 'string' ? value : null))
+        .filter((value): value is number | string => value !== null)
+
+      if (Object.keys(payload).length === 0 && !shouldUpdateCategories) {
+        throw request.server.httpErrors.badRequest('Nothing to update')
+      }
+
+      if (Object.keys(payload).length > 0) {
+        const { error: updateError } = await authedSupabase
+          .from(RECIPES_TABLE)
+          .update(payload)
+          .eq('id', id)
+
+        if (updateError) {
+          throw request.server.httpErrors.internalServerError(updateError.message)
+        }
+      }
+
+      if (shouldUpdateCategories) {
+        const { error: clearCategoriesError } = await authedSupabase
+          .from(RECIPE_CATEGORIES_TABLE)
+          .delete()
+          .eq('recipe_id', id)
+
+        if (clearCategoriesError) {
+          throw request.server.httpErrors.internalServerError(clearCategoriesError.message)
+        }
+
+        if (normalizedCategoryIds.length > 0) {
+          const { error: categoryLinksError } = await authedSupabase
+            .from(RECIPE_CATEGORIES_TABLE)
+            .insert(
+              normalizedCategoryIds.map((categoryId) => ({
+                recipe_id: id,
+                category_id: categoryId,
+              })),
+            )
+
+          if (categoryLinksError) {
+            throw request.server.httpErrors.internalServerError(categoryLinksError.message)
+          }
+        }
+      }
+
+      const { data: updatedRecipe, error: updatedRecipeError } = await authedSupabase
+        .from(RECIPES_TABLE)
+        .select('*, recipe_categories(category:categories(id,slug,name,sort_order))')
+        .eq('id', id)
+        .single()
+
+      if (updatedRecipeError) {
+        throw request.server.httpErrors.internalServerError(updatedRecipeError.message)
+      }
+
+      const { data: owner, error: ownerError } = await authedSupabase
+        .from('profiles')
+        .select('id,display_name,avatar_url')
+        .eq('id', updatedRecipe.owner_id)
+        .maybeSingle()
+
+      if (ownerError) {
+        throw request.server.httpErrors.internalServerError(ownerError.message)
+      }
+
+      return {
+        ...updatedRecipe,
+        owner: owner ?? null,
+      }
+    },
+  )
+
+  fastify.delete(
+    '/recipes/:id',
+    {
+      schema: {
+        tags: ['recipes'],
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+          },
+          required: ['id'],
+          additionalProperties: false,
+        },
+        response: {
+          204: { type: 'null' },
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = await requireUser(request)
+      const token = getBearerToken(request.headers.authorization)
+      const authedSupabase = createSupabaseClient(token ?? undefined)
+      const { id } = request.params as FavoriteParams
+
+      const { data: recipe, error: recipeError } = await authedSupabase
+        .from(RECIPES_TABLE)
+        .select('id,owner_id')
+        .eq('id', id)
+        .maybeSingle()
+
+      if (recipeError) {
+        throw request.server.httpErrors.internalServerError(recipeError.message)
+      }
+
+      if (!recipe) {
+        throw request.server.httpErrors.notFound('Recipe not found')
+      }
+
+      if (recipe.owner_id !== user.id) {
+        throw request.server.httpErrors.forbidden('You can only delete your own recipes')
+      }
+
+      const { error: deleteError } = await authedSupabase
+        .from(RECIPES_TABLE)
+        .delete()
+        .eq('id', id)
+
+      if (deleteError) {
+        throw request.server.httpErrors.internalServerError(deleteError.message)
+      }
+
+      reply.code(204)
+      return null
+    },
   )
 
   fastify.post(
