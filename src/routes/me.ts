@@ -30,7 +30,7 @@ const me: FastifyPluginAsync = async (fastify): Promise<void> => {
 
     const { data: favorites, error: favoritesError } = await authedSupabase
       .from(FAVORITES_TABLE)
-      .select('recipe:recipe_id(*, recipe_categories(category:categories(id,slug,name,sort_order)))')
+      .select('recipe:recipe_id(*, recipe_categories(category_id))')
       .eq('user_id', user.id)
 
     if (favoritesError) {

@@ -34,33 +34,6 @@ interface RecipeUpdateBody {
 
 const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
   fastify.get(
-    '/categories',
-    {
-      schema: {
-        tags: ['categories'],
-        response: {
-          200: {
-            type: 'array',
-            items: { type: 'object', additionalProperties: true },
-          },
-        },
-      },
-    },
-    async (request) => {
-      const { data, error } = await supabase
-        .from(CATEGORIES_TABLE)
-        .select('id,slug,name,sort_order')
-        .order('sort_order', { ascending: true })
-        .order('name', { ascending: true })
-
-      if (error) {
-        throw request.server.httpErrors.internalServerError(error.message)
-      }
-
-      return data ?? []
-    },
-  )
-  fastify.get(
     '/recipes',
     {
       schema: {
@@ -88,8 +61,7 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
     const categoryTrimmed = category?.trim()
     const ownerIdTrimmed = owner_id?.trim()
 
-    const selectWithCategories =
-      '*, recipe_categories(category:categories(id,slug,name,sort_order))'
+    const selectWithCategories = '*, recipe_categories(category_id)'
 
     if (categoryTrimmed) {
       const { data: categoryRow, error: categoryError } = await supabase
@@ -309,7 +281,7 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
 
       const { data: recipeWithCategories, error: recipeError } = await authedSupabase
         .from(RECIPES_TABLE)
-        .select('*, recipe_categories(category:categories(id,slug,name,sort_order))')
+        .select('*, recipe_categories(category_id)')
         .eq('id', data.id)
         .single()
 
@@ -502,7 +474,7 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
 
       const { data: updatedRecipe, error: updatedRecipeError } = await authedSupabase
         .from(RECIPES_TABLE)
-        .select('*, recipe_categories(category:categories(id,slug,name,sort_order))')
+        .select('*, recipe_categories(category_id)')
         .eq('id', id)
         .single()
 
