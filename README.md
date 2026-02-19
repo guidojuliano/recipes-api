@@ -9,11 +9,15 @@ API de recetas con Fastify y Supabase.
 
 ## Variables de entorno
 
-Crea un `.env` en la raíz con:
+Crea un `.env` en la raíz tomando como base `.env.example`:
 
 ```
 SUPABASE_URL=...
 SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+FIREBASE_PROJECT_ID=...
+FIREBASE_CLIENT_EMAIL=...
+FIREBASE_PRIVATE_KEY=...
 ```
 
 ## Scripts
@@ -88,6 +92,11 @@ Pasos:
 2. Configura variables de entorno:
    - `SUPABASE_URL`
    - `SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `FIREBASE_PROJECT_ID`
+   - `FIREBASE_CLIENT_EMAIL`
+   - `FIREBASE_PRIVATE_KEY`
 3. Deploy.
 
 La API queda expuesta en la URL del proyecto.
+

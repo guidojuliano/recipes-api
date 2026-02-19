@@ -1,6 +1,7 @@
 import { FastifyPluginAsync } from 'fastify'
 import { createSupabaseClient, supabase } from '../config/supabase'
 import { getBearerToken, requireUser } from '../utils/auth'
+import { notifyFollowersNewRecipe } from '../services/push_notifications'
 
 const RECIPES_TABLE = 'recipes'
 const FAVORITES_TABLE = 'favorites'
@@ -299,6 +300,14 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
         throw request.server.httpErrors.internalServerError(ownerError.message)
       }
 
+      await notifyFollowersNewRecipe({
+        authorId: user.id,
+        authorName: owner?.display_name ?? 'Cookly',
+        recipeId: data.id,
+        recipeTitle: data.title,
+        logger: request.log,
+      })
+
       reply.code(201)
       return {
         ...recipeWithCategories,
@@ -316,6 +325,14 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
     if (ownerError) {
       throw request.server.httpErrors.internalServerError(ownerError.message)
     }
+
+    await notifyFollowersNewRecipe({
+      authorId: user.id,
+      authorName: owner?.display_name ?? 'Cookly',
+      recipeId: data.id,
+      recipeTitle: data.title,
+      logger: request.log,
+    })
 
     return {
       ...data,
@@ -651,3 +668,4 @@ const recipes: FastifyPluginAsync = async (fastify): Promise<void> => {
 }
 
 export default recipes
+
