@@ -139,9 +139,9 @@ async function sendFcmV1(token: string, input: SendFcmInput): Promise<void> {
             body: input.body,
           },
           data: input.data,
-        },
-        android: {
-          priority: 'high',
+          android: {
+            priority: 'HIGH',
+          },
         },
       }),
       },
@@ -259,3 +259,4 @@ async function getGoogleAccessToken(
     return null
   }
 }
+
